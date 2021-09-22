@@ -1,0 +1,635 @@
+---
+name:                               gateway
+namespace:                          com.citrix.adc.stylebooks
+version:                            "1.0"
+display-name:                       "Gateway"
+description:                        "Steven's on-premises LDAP Only Gateway Stylebook"
+schema-version:                     "1.0"
+import-stylebooks:
+  -
+    namespace:                      netscaler.nitro.config
+    prefix:                         ns
+    version:                        "13.0"
+  -
+    namespace:                      com.citrix.adc.commontypes
+    prefix:                         cmtypes
+    version:                        "1.0"
+  -
+    namespace:                      com.citrix.adc.stylebooks
+    prefix:                         stlb
+    version:                        "1.0"
+
+parameters:
+  -
+    name:                           gatewayvservername
+    label:                          "Friendly Name for the new Gateway vServer"
+    description:                    "The name for the Gateway vServer created by this StyleBook"
+    type:                           string
+    default:                        "Example Gateway"
+    required:                       true
+  -
+    name:                           gatewayfqdn
+    label:                          "FQDN for the new Gateway vServer"
+    description:                    "The FQDN for the Gateway vServer created by this StyleBook"
+    type:                           string
+    default:                        "gateway.mycoolcompany.com"
+    required:                       true
+  -
+    name:                           gatewayvserverntdomain
+    label:                          "Windows domain that should be sent to StoreFront"
+    description:                    "The ADC will send the username and a domain to StoreFront, what domain should it send?"
+    type:                           string
+    default:                        "mycoolcompany.local"
+    required:                       true
+  -
+    name:                           gateway-vip-ipaddress
+    label:                          "IP address for the new Gateway vServer"
+    description:                    "The IP address for the Gateway vServer created by this StyleBook"
+    type:                           ipaddress
+    required:                       true
+  -
+    name:                           ldap-lb-vip-ipaddress
+    label:                          "IP address for the new local LDAP load balancing vServer"
+    description:                    "To prevent the ADC sourcing authentication requests from the NSIP, this Stylebook will create a new local load balancing vServer"
+    type:                           ipaddress
+    required:                       true
+  -
+    name:                           storefront-lb-vip-ipaddress
+    label:                          "IP address for a new local StoreFront load balancing vServer"
+    description:                    "To distribute load and proactively monitor StoreFront servers, this Stylebook will create a new local load balancing vServer"
+    type:                           ipaddress
+    required:                       true
+  -
+    name:                           authenticationsettings
+    label:                          "Authentication settings"
+    description:                    "Settings for authentication to the new on-premises Gateway vServer (Single Factor using LDAP only)"
+    type:                           object
+    parameters:
+    -
+      name:                         ldapauthencryption
+      label:                        "How should the ADC send passwords to the LDAP servers?"
+      type:                         string
+      default:                      "Encrypted (SSL - TCP 636)"
+      allowed-values:
+       - "Encrypted using SSL (TCP 636)"
+       - "Encrypted using TLS (TCP 389)"
+       - "I want to send passwords over my network in plaintext (PLAINTEXT - 389)"
+      required:                     true
+    -
+      name:                         serviceaccountusername
+      label:                        "What username should the ADC use to authenticate against LDAP? (as UPN or DN)"
+      description:                  "The user for an unprivileged service account that the ADC can use to search for details of the authenticating user"
+      type:                         string
+      default:                      "serviceaccount@mycoolcompany.local"
+      required:                     true
+    -
+      name:                         serviceaccountpassword
+      label:                        "What password should the ADC use to authenticate against LDAP?"
+      description:                  "The password for an unprivileged service account that the ADC can use to search for details of the authenticating user"
+      type:                         string
+      default:                      "serviceaccountpassword"
+      required:                     true
+    -
+      name:                         basedn
+      label:                        "In which LDAP baseDN should the ADC search for users?"
+      description:                  "The ADC will authenticate to LDAP and search for users in the defined basedn"
+      type:                         string
+      default:                      "dc=mycoolcompany, dc=local"
+      required:                     true
+    -
+      name:                         ldapsearchfilter
+      label:                        "What filter should be applied to the LDAP monitor?"
+      description:                  "The LDAP monitor will perform a search to verify the server is working. To prevent LDAP returning a large number of users, a LDAP filter should be applied to the monitor."
+      type:                         string
+      default:                      "cn=Builtin"
+      required:                     true
+    -
+      name:                         ldapservers
+      label:                        "Please add each LDAP server to which the ADC should load balance requests"
+      type:                         ipaddress[]
+      min-items:                    1
+      max-items:                    60
+      allow-new-values:             true
+      default:
+      - "192.168.1.1"
+
+  -
+    name:                           gatewaysettings
+    label:                          "Gateway vServer configuration"
+    description:                    "Settings for the new on-premises Gateway vServer"
+    type:                           object
+    parameters:
+    -
+      name:                         staservers
+      label:                        "Which STA servers would you like to use?"
+      description:                  "All STA servers defined on the StoreFront Store must be included"
+      type:                         string[]
+      min-items:                    1
+      max-items:                    60
+      allow-new-values:             true
+      default:
+      - "https://192.168.1.1:443"
+    -
+      name:                         storefrontstore
+      label:                        "What is the name of the StoreFront store?"
+      description:                  "Which StoreFront store should the new Gateway vServer direct users to?"
+      type:                         string
+      default:                      "Store"
+      required:                     true
+    -
+      name:                         storefrontservers
+      label:                        "Please add each StoreFront server to which the ADC should direct requests"
+      type:                         ipaddress[]
+      min-items:                    1
+      max-items:                    60
+      allow-new-values:             true
+      default:
+      - "192.168.1.1"
+    -
+      name:                         CitrixCloud
+      label:                        "Would you like to use this Gateway vServer to authenticate an existing Citrix Cloud Gateway platform?"
+      description:                  "By selecting this option, the new Gateway vServer will act as an OAUTH IdP using the details provided by Citrix Cloud Gateway."
+      type:                         object
+      required:                     false
+      parameters:
+      -
+        name:                       clientID
+        label:                      "ClientID value provided by Citrix Cloud"
+        description:                "Value provided by the Identity and Access Management menu within Citrix Cloud"
+        type:                       string
+        required:                   true
+      -
+        name:                       secret
+        label:                      "Secret value provided by Citrix Cloud"
+        description:                "Value provided by the Identity and Access Management menu within Citrix Cloud"
+        type:                       string
+        required:                   true
+      -
+        name:                       redirectURL
+        label:                      "Redirect URL value provided by Citrix Cloud"
+        description:                "Value provided by the Identity and Access Management menu within Citrix Cloud"
+        type:                       string
+        required:                   true
+    -
+      name:                         different-sf-name-switch
+      label:                        "Does the FQDN for StoreFront differ from the FQDN for the new Gateway?"
+      description:                  "By default, this StyleBook expects that users will use the same name for StoreFront (internally) and the Gateway (externally)"
+      type:                         object
+      parameters:
+      -
+        name:                       different-sf-server-name
+        label:                      "Internal FQDN StoreFront (only populate if different)"
+        description:                "If the internal FQDN for StoreFront is different than the Gateway FQDN, please input the internal FQDN here"
+        type:                       string
+        required:                   false
+    -
+      name:                         dtls-switch
+      label:                        "Would you like to disable DTLS / ICA over UDP support for this vServer?"
+      description:                  "DTLS (ICA over UDP) will be disabled on this Gateway vServer"
+      type:                         boolean
+      default:                      false
+  -
+    name:                           certificate-settings
+    label:                          "SSL/TLS Settings"
+    description:                    "SSL/TLS settings that will be applied to the new Gateway vServer."
+    type:                           object
+    parameters:
+    -
+      name:                         cert-type
+      label:                        Should the new Gateway vServer use a New or Existing certificate?
+      description:                  Please note this is a push and you need the name of an existing certificate if a new one isn't used.
+      type:                         string
+      allowed-values:
+      - New
+      - Existing
+      default:                      "New"
+      required:                     true
+    -
+      name:                         cert-key-pair-name
+      label:                        Name of SSL Certificate
+      description:                  Name of the new or existing SSL certificate
+      type:                         string
+      default:                      "mygatewaycert"
+      required:                     true
+    -
+      name:                         certificates-new
+      label:                        "SSL Certificate Settings"
+      type:                         "cmtypes::certificate[]"
+
+
+components:
+  -
+    name:                           enable-gateway-features
+    type:                           ns::nsfeature
+    description:                    Enable the ADC features required by this StyleBook
+    meta-properties:
+      action:                       enable
+    properties:
+      feature:                      ["ssl", "sslvpn", "aaa", "cs", "lb"]
+  -
+    name:                           dns-record-pointing-requests-from-the-adc-to-the-local-sf-lb
+    type:                           ns::dnsaddrec
+    condition:                      (not $parameters.gatewaysettings.different-sf-name-switch.different-sf-server-name)
+    properties:
+      hostname:                     $parameters.gatewayfqdn
+      ipaddress:                    $parameters.storefront-lb-vip-ipaddress
+  -
+    name:                           authentication-profile
+    type:                           ns::authenticationauthnprofile
+    properties:
+      name:                         str("authprofile_") + $parameters.gatewayvservername
+      authnvsname:                  str("aaavs_") + $parameters.gatewayvservername
+  -
+    name:                           vpn-session-action-web
+    type:                           ns::vpnsessionaction
+    properties:
+      name:                         str("Web_Session_Action_for_") + $parameters.gatewayvservername
+      transparentinterception:      "OFF"
+      defaultauthorizationaction:   "ALLOW"
+      sso:                          "ON"
+      icaproxy:                     "ON"
+      wihome:                       str("https://") + $parameters.gatewayfqdn + str("/Citrix/") + $parameters.gatewaysettings.storefrontstore + str("Web")
+      ntdomain:                     $parameters.gatewayvserverntdomain
+      clientlessvpnmode:            "OFF"
+  -
+    name:                           vpn-session-policy-web
+    type:                           ns::vpnsessionpolicy
+    properties:
+      name:                         str("Web_Session_Policy_for_") + $parameters.gatewayvservername
+      rule:                         str("HTTP.REQ.HEADER") + "(" + "\"User-Agent\"" + ")" + ".CONTAINS" + "(" + "\"CitrixReceiver\"" + ")" + ".NOT"
+      action:                       $components.vpn-session-action-web.properties.name
+  -
+    name:                           vpn-session-action-receiver
+    type:                           ns::vpnsessionaction
+    properties:
+      name:                         str("Receiver_Session_Action_for_") + $parameters.gatewayvservername
+      transparentinterception:      "OFF"
+      defaultauthorizationaction:   "ALLOW"
+      sso:                          "ON"
+      icaproxy:                     "ON"
+      wihome:                       str("https://") + $parameters.gatewayfqdn
+      ntdomain:                     $parameters.gatewayvserverntdomain
+      clientlessvpnmode:            "OFF"
+      storefronturl:                str("https://") + $parameters.gatewayfqdn
+  -
+    name:                           vpn-session-policy-receiver
+    type:                           ns::vpnsessionpolicy
+    properties:
+      name:                         str("Receiver_Session_Policy_for_") + $parameters.gatewayvservername
+      rule:                         str("HTTP.REQ.HEADER") + "(" + "\"User-Agent\"" + ")" + ".CONTAINS" + "(" + "\"CitrixReceiver\"" + ")"
+      action:                       $components.vpn-session-action-receiver.properties.name
+  -
+    name:                           gateway-vserver
+    description:                    "Create the Gateway vServer"
+    type:                           ns::vpnvserver
+    properties:
+      name:                         $parameters.gatewayvservername
+      port:                         0
+      servicetype:                  "SSL"
+      ipv46:                        0.0.0.0
+      dtls:                         if-then-else($parameters.gatewaysettings.dtls-switch, "OFF", "ON")
+      tcpprofilename:               "nstcp_default_XA_XD_profile"
+      icaOnly:                      str("Yes")
+      authnprofile:                 $components.authentication-profile.properties.name
+      comment:                      ("Gateway vServer created using Steven Wright StyleBook v0.1")
+    components:
+      -
+        name:                       gateway-vserver-bind-new-certificate
+        type:                       stlb::vserver-certs-binds
+        condition:                  $parameters.certificate-settings.cert-type == "New"
+        properties:
+          certificates:             $parameters.certificate-settings.certificates-new
+          vserver-name:             $parent.properties.name
+      -
+        name:                       gateway-vserver-bind-existing-certificate
+        type:                       ns::sslvserver_sslcertkey_binding
+        condition:                  $parameters.certificate-settings.cert-type == "Existing"
+        properties:
+          certkeyname:              $parameters.certificate-settings.cert-key-pair-name
+          vservername:              $parent.properties.name
+      -
+        name:                       gateway-vserver-bind-sta
+        type:                       ns::vpnvserver_staserver_binding
+        repeat:                     $parameters.gatewaysettings.staservers
+        repeat-condition:           $parameters.gatewaysettings.staservers
+        repeat-item:                server
+        properties:
+          name:                     $parent.properties.name
+          staaddresstype:           "IPV4"
+          staserver:                $server
+  -
+    name:                           lb-vserver-sf-mon
+    type:                           ns::lbmonitor
+    description:                    "Create the StoreFront Load Balancer monitor"
+    properties:
+      monitorname:                  str("mon_sf_") + $parameters.gatewayvservername
+      type:                         "STOREFRONT"
+      storename:                    $parameters.gatewaysettings.storefrontstore
+      secure:                       str("YES")
+  -
+    name:                           lb-vserver-sf
+    description:                    "Create the StoreFront Load Balancing vServer"
+    type:                           ns::lbvserver
+    properties:
+      name:                         str("lbvs_sf_") + $parameters.gatewayvservername
+      servicetype:                  SSL
+      ipv46:                        $parameters.storefront-lb-vip-ipaddress
+      port:                         443
+      lbmethod:                     LEASTCONNECTION
+      persistencetype:              COOKIEINSERT
+      timeout:                      20
+    components:
+    -
+        name:                       gateway-vserver-bind-new-certificate
+        type:                       stlb::vserver-certs-binds
+        condition:                  $parameters.certificate-settings.cert-type == "New"
+        properties:
+            certificates:           $parameters.certificate-settings.certificates-new
+            vserver-name:           $parent.properties.name
+    -
+        name:                       gateway-vserver-bind-existing-certificate
+        type:                       ns::sslvserver_sslcertkey_binding
+        condition:                  $parameters.certificate-settings.cert-type == "Existing"
+        properties:
+            certkeyname:            $parameters.certificate-settings.cert-key-pair-name
+            vservername:            $parent.properties.name
+    -
+      name:                         lb-servicegroup-sf
+      description:                  "Create the StoreFront Load Balancing vServer's service group"
+      type:                         ns::servicegroup
+      condition:                    $parameters.gatewaysettings.storefrontservers
+      properties:
+        servicegroupname:           str("svcg_sf_") + $parameters.gatewayvservername
+        servicetype:                SSL
+      components:
+      -
+       name:                        lb-servicegroup-sf-binding
+       description:                 "Bind the StoreFront Load Balancing vServer's service group to the vServer"
+       type:                        ns::lbvserver_servicegroup_binding
+       properties:
+         name:                      $parent.parent.properties.name
+         servicegroupname:          $parent.properties.servicegroupname
+      -
+       name:                        lb-servicegroup-sf-servers
+       description:                 "Create the server objects to be used by the StoreFront Load Balancing vServer's service group"
+       type:                        ns::server
+       repeat:                      $parameters.gatewaysettings.storefrontservers
+       repeat-item:                 server
+       repeat-condition:            $parameters.gatewaysettings.storefrontservers
+       properties:
+         name:                      str($server)
+         ipaddress:                 $server
+      -
+        name:                       lb-servicegroup-sf-server-bindings
+        description:                "Bind the StoreFront Load Balancing vServer's service group's server objects"
+        type:                       ns::servicegroup_servicegroupmember_binding
+        repeat:                     $parameters.gatewaysettings.storefrontservers
+        repeat-item:                server
+        properties:
+          servicegroupname:         $parent.properties.servicegroupname
+          servername:               str($server)
+          port:                     443
+      -
+        name:                       lb-servicegroup-sf-monitor-binding
+        description:                "Bind the StoreFront Load Balancing vServer's service group's monitor"
+        type:                       ns::servicegroup_lbmonitor_binding
+        properties:
+          servicegroupname:         $parent.properties.servicegroupname
+          monitor_name:             str("mon_sf_") + $parameters.gatewayvservername
+  -
+    name:                           lb-vserver-ldap-mon
+    type:                           ns::lbmonitor
+    description:                    "Create the LDAP Load Balancer monitor"
+    properties:
+      monitorname:                  str("mon_ldap_") + $parameters.gatewayvservername
+      type:                         "LDAP"
+      baseDN:                       $parameters.authenticationsettings.basedn
+      bindDN:                       $parameters.authenticationsettings.serviceaccountusername
+      password:                     $parameters.authenticationsettings.serviceaccountpassword
+      filter:                       $parameters.authenticationsettings.ldapsearchfilter
+      secure:                       str("YES")
+  -
+    name:                           lb-vserver-ldap
+    description:                    "Create the LDAP Load Balancing vServer"
+    type:                           ns::lbvserver
+    properties:
+      name:                         str("lbvs_ldap_") + $parameters.gatewayvservername
+      servicetype:                  TCP
+      ipv46:                        $parameters.ldap-lb-vip-ipaddress
+      port:                         if-then-else(($parameters.authenticationsettings.ldapauthencryption == "Encrypted using SSL (TCP 636)"), 636, 389)
+      lbmethod:                     LEASTCONNECTION
+      persistencetype:              SOURCEIP
+    components:
+    -
+      name:                         lb-servicegroup-ldap
+      description:                  "Create the LDAP Load Balancing vServer's service group"
+      type:                         ns::servicegroup
+      condition:                    $parameters.authenticationsettings.ldapservers
+      properties:
+        servicegroupname:           str("svcg_ldap_") + $parameters.gatewayvservername
+        servicetype:                TCP
+      components:
+      -
+       name:                        lb-servicegroup-ldap-monitor-binding
+       description:                 "Bind the LDAP Load Balancing vServer's service group's monitor"
+       type:                        ns::servicegroup_lbmonitor_binding
+       properties:
+         servicegroupname:          $parent.properties.servicegroupname
+         monitor_name:              str("mon_ldap_") + $parameters.gatewayvservername
+      -
+       name:                        lb-servicegroup-ldap-binding
+       description:                 "Bind the LDAP Load Balancing vServer's service group to the vServer"
+       type:                        ns::lbvserver_servicegroup_binding
+       properties:
+         name:                      $parent.parent.properties.name
+         servicegroupname:          $parent.properties.servicegroupname
+      -
+       name:                        lb-servicegroup-ldap-servers
+       description:                 "Create the server objects to be used by the LDAP Load Balancing vServer's service group"
+       type:                        ns::server
+       repeat:                      $parameters.authenticationsettings.ldapservers
+       repeat-item:                 server
+       repeat-condition:            $parameters.authenticationsettings.ldapservers
+       properties:
+         name:                      str($server)
+         ipaddress:                 $server
+      -
+        name:                       lb-servicegroup-ldap-server-bindings
+        description:                "Bind the LDAP Load Balancing vServer's service group's server objects"
+        type:                       ns::servicegroup_servicegroupmember_binding
+        repeat:                     $parameters.authenticationsettings.ldapservers
+        repeat-item:                server
+        properties:
+          servicegroupname:         $parent.properties.servicegroupname
+          servername:               str($server)
+          port:                     if-then-else(($parameters.authenticationsettings.ldapauthencryption == "Encrypted using SSL (TCP 636)"), 636, 389)
+  -
+        name:                       auth-ldap-action
+        type:                       ns::authenticationldapaction
+        properties:
+            name:                   str("aaavs_ldap_action_") + $parameters.gatewayvservername
+            serverip:               $parameters.ldap-lb-vip-ipaddress
+            serverport:             $components.lb-vserver-ldap.properties.port
+            sectype:                if-then-else(($parameters.authenticationsettings.ldapauthencryption == "Encrypted using SSL (TCP 636)"), SSL, if-then-else(($parameters.authenticationsettings.ldapauthencryption == "Encrypted using TLS (TCP 389)"), TLS, PLAINTEXT))
+            groupattrname:          "memberOf"
+            subattributename:       "CN"
+            ldaploginname:          "sAMAccountName"
+            ssonameattribute:       "userPrincipalName"
+            ldapbase:               $parameters.authenticationsettings.basedn
+            ldapbinddn:             $parameters.authenticationsettings.serviceaccountusername
+            ldapbinddnpassword:     $parameters.authenticationsettings.serviceaccountpassword
+            CloudAttributes:        "ENABLED"
+  -
+        name:                       auth-ldap-policy
+        type:                       ns::authenticationpolicy
+        properties:
+            name:                   str("aaavs_ldap_policy_") + $parameters.gatewayvservername
+            rule:                   str("true")
+            action:                 $components.auth-ldap-action.properties.name
+  -
+    name:                           auth-vserver
+    type:                           ns::authenticationvserver
+    description:                    This component creates the AAATM Vserver config entity
+    properties:
+      name:                         str("aaavs_") + $parameters.gatewayvservername
+      servicetype:                  "SSL"
+      ipv46:                        0.0.0.0
+      port:                         0
+      maxloginattempts:             10
+      failedlogintimeout:           15
+    components:
+      -
+        name:                       auth-vserver-bind-new-certificate
+        type:                       stlb::vserver-certs-binds
+        condition:                  $parameters.certificate-settings.cert-type == "New"
+        properties:
+          certificates:             $parameters.certificate-settings.certificates-new
+          vserver-name:             $parent.properties.name
+      -
+        name:                       auth-vserver-bind-existing-certificate
+        type:                       ns::sslvserver_sslcertkey_binding
+        condition:                  $parameters.certificate-settings.cert-type == "Existing"
+        properties:
+          certkeyname:              $parameters.certificate-settings.cert-key-pair-name
+          vservername:              $parent.properties.name
+      -
+        name:                       auth-vserver-bind-ldap-policy
+        type:                       ns::authenticationvserver_authenticationpolicy_binding
+        properties:
+          name:                     $parent.properties.name
+          policy:                   $components.auth-ldap-policy.properties.name
+          priority:                 100
+  -
+
+    name:                           cs-vserver
+    type:                           ns::csvserver
+    properties:
+      name:                         str("csvs_") + $parameters.gatewayvservername
+      servicetype:                  "SSL"
+      ipv46:                        $parameters.gateway-vip-ipaddress
+      port:                         443
+      clttimeout:                   900
+      httpprofilename:              nshttp_default_strict_validation
+      tcpprofilename:               nstcp_default_XA_XD_profile
+      dtls:                         if-then-else($parameters.gatewaysettings.dtls-switch, "OFF", "ON")
+      comment:                      ("Gateway vServer created using Steven Wright StyleBook v0.1")
+    components:
+      -
+        name:                       auth-vserver-bind-new-certificate
+        type:                       stlb::vserver-certs-binds
+        condition:                  $parameters.certificate-settings.cert-type == "New"
+        properties:
+          certificates:             $parameters.certificate-settings.certificates-new
+          vserver-name:             $parent.properties.name
+      -
+        name:                       auth-vserver-bind-existing-certificate
+        type:                       ns::sslvserver_sslcertkey_binding
+        condition:                  $parameters.certificate-settings.cert-type == "Existing"
+        properties:
+          certkeyname:              $parameters.certificate-settings.cert-key-pair-name
+          vservername:              $parent.properties.name
+  -
+    name:                           cs-binding
+    type:                           ns::csvserver_vpnvserver_binding
+    properties:
+      name:                         str("csvs_") + $parameters.gatewayvservername
+      vserver:                      $parameters.gatewayvservername
+  -
+    name:                           cs-redirect-vserver
+    type:                           ns::csvserver
+    properties:
+      name:                         str("csvs_http_to_https_redirect_") + $parameters.gatewayvservername
+      servicetype:                  "HTTP"
+      ipv46:                        $parameters.gateway-vip-ipaddress
+      port:                         80
+      clttimeout:                   900
+      httpprofilename:              nshttp_default_strict_validation
+      tcpprofilename:               nstcp_default_XA_XD_profile
+      comment:                      ("Gateway vServer created using Steven Wright StyleBook v0.1")
+  -
+    name:                           redirect-to-https-action
+    type:                           ns::responderaction
+    properties:
+        name:                       $parameters.gatewayvservername + "-redirect-to-https-responder-action"
+        type:                       REDIRECT
+        target:                     str("\"https://\" + HTTP.REQ.HOSTNAME.HTTP_URL_SAFE + HTTP.REQ.URL.PATH_AND_QUERY.HTTP_URL_SAFE")
+    components:
+      -
+        name:                       redirect-to-https-policy
+        type:                       ns::responderpolicy
+        properties:
+          name:                     $parameters.gatewayvservername + "-redirect-to-https-responder-policy"
+          rule:                     "HTTP.REQ.IS_VALID"
+          action:                   $parent.properties.name
+  -
+    name:                           cs-redirect-vserver-binding
+    type:                           ns::csvserver_responderpolicy_binding
+    properties:
+      name:                         str("csvs_http_to_https_redirect_") + $parameters.gatewayvservername
+      policyname:                   $parameters.gatewayvservername + "-redirect-to-https-responder-policy"
+      priority:                     10
+      bindpoint:                    REQUEST
+  -
+
+    name:                           vpn-session-policy-web-binding
+    type:                           ns::vpnvserver_vpnsessionpolicy_binding
+    properties:
+      name:                         $components.gateway-vserver.properties.name
+      policy:                       $components.vpn-session-policy-web.properties.name
+      priority:                     100
+  -
+    name:                           vpn-session-policy-receiver-binding
+    type:                           ns::vpnvserver_vpnsessionpolicy_binding
+    properties:
+      name:                         $components.gateway-vserver.properties.name
+      policy:                       $components.vpn-session-policy-receiver.properties.name
+      priority:                     110
+  -
+    name:                           auth-vserver-citrix-cloud-oauth-idp-profile
+    type:                           ns::authenticationoauthidpprofile
+    condition:                      $parameters.gatewaysettings.CitrixCloud
+    properties:
+      name:                         str("aaavs_citrix_cloud_oauth_idp_profile_") + $parameters.gatewayvservername
+      clientid:                     $parameters.gatewaysettings.CitrixCloud.clientID
+      clientsecret:                 $parameters.gatewaysettings.CitrixCloud.secret
+      redirecturl:                  $parameters.gatewaysettings.CitrixCloud.redirectURL
+      issuer:                       $parameters.gatewayfqdn
+      audience:                     $parameters.gatewaysettings.CitrixCloud.clientID
+      skewtime:                     5
+      sendpassword:                 str("YES")
+  -
+      name:                         auth-vserver-citrix-cloud-oauth-idp-profile-binding
+      type:                         ns::authenticationvserver_authenticationoauthidppolicy_binding
+      condition:                    $parameters.gatewaysettings.CitrixCloud
+      properties:
+        name:                       $components.auth-vserver.properties.name
+        policy:                     $components.auth-vserver-citrix-cloud-oauth-idp-profile.properties.name
+        priority:                   10
+  -
+      name:                         citrix-cloud-oauth-idp-cert-binding
+      type:                         ns::vpnglobal_sslcertkey_binding
+      condition:                    $parameters.gatewaysettings.CitrixCloud
+      properties:
+        certkeyname:                $parameters.certificate-settings.cert-key-pair-name
+
+  
