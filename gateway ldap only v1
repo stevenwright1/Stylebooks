@@ -225,7 +225,7 @@ components:
     meta-properties:
       action:                       enable
     properties:
-      feature:                      ["ssl", "sslvpn", "aaa", "cs", "lb"]
+      feature:                      ["ssl", "sslvpn", "aaa", "cs", "lb", "responder"]
   -
     name:                           dns-record-pointing-requests-from-the-adc-to-the-local-sf-lb
     type:                           ns::dnsaddrec
@@ -618,18 +618,24 @@ components:
       skewtime:                     5
       sendpassword:                 str("YES")
   -
-      name:                         auth-vserver-citrix-cloud-oauth-idp-profile-binding
-      type:                         ns::authenticationvserver_authenticationoauthidppolicy_binding
-      condition:                    $parameters.gatewaysettings.CitrixCloud
-      properties:
-        name:                       $components.auth-vserver.properties.name
-        policy:                     $components.auth-vserver-citrix-cloud-oauth-idp-profile.properties.name
-        priority:                   10
+    name:                           auth-vserver-citrix-cloud-oauth-idp-policy
+    type:                           ns::authenticationoauthidppolicy
+    condition:                      $parameters.gatewaysettings.CitrixCloud
+    properties:
+      name:                         str("aaavs_citrix_cloud_oauth_idp_policy_") + $parameters.gatewayvservername
+      rule:                         str("true")
+      action:                       str("aaavs_citrix_cloud_oauth_idp_profile_") + $parameters.gatewayvservername
   -
-      name:                         citrix-cloud-oauth-idp-cert-binding
-      type:                         ns::vpnglobal_sslcertkey_binding
-      condition:                    $parameters.gatewaysettings.CitrixCloud
-      properties:
-        certkeyname:                $parameters.certificate-settings.cert-key-pair-name
-
-  
+    name:                           auth-vserver-citrix-cloud-oauth-idp-policy-binding
+    type:                           ns::authenticationvserver_authenticationoauthidppolicy_binding
+    condition:                      $parameters.gatewaysettings.CitrixCloud
+    properties:
+      name:                         $components.auth-vserver.properties.name
+      policy:                       $components.auth-vserver-citrix-cloud-oauth-idp-policy.properties.name
+      priority:                     100
+  -
+    name:                           citrix-cloud-oauth-idp-cert-binding
+    type:                           ns::vpnglobal_sslcertkey_binding
+    condition:                      $parameters.gatewaysettings.CitrixCloud
+    properties:
+      certkeyname:                  parameters.certificate-settings.cert-key-pair-name
